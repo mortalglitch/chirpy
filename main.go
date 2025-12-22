@@ -9,8 +9,15 @@ import (
 func main() {
 	fmt.Println("Starting Server...")
 	mux := http.NewServeMux()
+	
+	healthHandler := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}
+	mux.HandleFunc("/healthz", healthHandler)
 
-	mux.Handle("/", http.FileServer(http.Dir(".")))
+	mux.Handle("/app/", http.StripPrefix("/app/", http.FileServer(http.Dir("."))))
 
 	server := &http.Server {
 		Handler:  mux,
@@ -21,4 +28,5 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 
 }
+
 
