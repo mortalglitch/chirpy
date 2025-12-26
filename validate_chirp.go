@@ -3,72 +3,50 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
+	"strings"
 )
 
 func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
-	type testChirp struct{
+	type parameters struct {
 		Body string `json:"body"`
 	}
-	type errorVals struct {
-		Error string `json:"error"`
-	}
 	type returnVals struct {
-		Valid bool `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(r.Body)
-	chirp := testChirp{}
-	err := decoder.Decode(&chirp)
+	params := parameters{}
+	err := decoder.Decode(&params)
 	if err != nil {
-		newError := errorVals{
-			Error: "Something went wrong",
-		}
-		data, err := json.Marshal(newError)
-		if err != nil {
-			w.WriteHeader(500)
-			w.Write(data)
-			return
-		}
-		w.WriteHeader(500)
-		w.Write(data)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
 
-	if len(chirp.Body) > 140 {
-		newError := errorVals{
-			Error: "Chirp is too long",
-		}
-		data, err := json.Marshal(newError)
-		if err != nil {
-			w.WriteHeader(500)
-			w.Write(data)
-			return
-		}
-		w.WriteHeader(400)
-		w.Write(data)
+	const maxChirpLength = 140
+	if len(params.Body) > maxChirpLength {
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
 		return
 	}
 
-	respBody := returnVals{
-		Valid: true,
+	cleanBody := cleanChirp(params.Body)
+
+	respondWithJSON(w, http.StatusOK, returnVals{
+		CleanedBody: cleanBody,
+	})
+}
+
+func cleanChirp(body string) string {
+	profane := []string{"kerfuffle", "sharbert", "fornax"}
+
+	splitBody := strings.Split(body, " ")
+	for i, item := range splitBody {
+		found := slices.Contains(profane, strings.ToLower(item))
+		if found {
+			splitBody[i] = "****"
+		}
 	}
 
-	data, err := json.Marshal(respBody)
-	if err != nil {
-		newError := errorVals{
-			Error: "Something went wrong",
-		}
-		data, err := json.Marshal(newError)
-		if err != nil {
-			w.WriteHeader(500)
-			w.Write(data)
-			return
-		}
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write(data)
-	return
+	return strings.Join(splitBody, " ")
 }
