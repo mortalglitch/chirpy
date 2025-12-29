@@ -16,3 +16,7 @@ DELETE FROM chirps;
 -- name: GetChirpsByCreated :many
 SELECT * FROM chirps
 ORDER BY created_at;
+
+-- name: GetChirpByID :one
+SELECT * FROM chirps
+WHERE ID = $1 LIMIT 1;
