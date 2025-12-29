@@ -79,3 +79,26 @@ func cleanChirp(body string) string {
 
 	return strings.Join(splitBody, " ")
 }
+
+func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+	getChirps, err := cfg.db.GetChirpsByCreated(context.Background())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't get Chirps", err)
+		return
+	}
+	
+	currentFeed := []Chirp{}
+
+	for _, item := range getChirps{
+		newChirp := Chirp{
+			ID:        item.ID,
+			CreatedAt: item.CreatedAt,
+			UpdatedAt: item.UpdatedAt,
+			Body:      item.Body,
+			UserID:    item.UserID,
+		}
+		currentFeed = append(currentFeed, newChirp)
+	}
+
+	respondWithJSON(w, 200, currentFeed)
+}
