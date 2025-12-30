@@ -18,6 +18,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	signingKey     string
 }
 
 func main() {
@@ -35,11 +36,13 @@ func main() {
 	dbQueries := database.New(db)
 
 	platformVersion := os.Getenv("PLATFORM")
+	signKey := os.Getenv("SIGNINGKEY")
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platformVersion,
+		signingKey:     signKey,
 	}
 
 	mux := http.NewServeMux()

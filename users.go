@@ -18,6 +18,15 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
+type LoggedUser struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+	Token     string    `json:"token"`
+}
+
+
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
@@ -63,8 +72,9 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 
 func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -73,6 +83,10 @@ func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
+	}
+
+	if params.ExpiresInSeconds == 0 || params.ExpiresInSeconds > 3600 {
+		params.ExpiresInSeconds = 3600
 	}
 
 	userData, err := cfg.db.GetUserByEmail(context.Background(), params.Email)
@@ -91,13 +105,19 @@ func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 401, "Incorrect email or password", err)
 		return
 	}
+	
+	newToken, err := auth.MakeJWT(userData.ID, cfg.signingKey, time.Duration(params.ExpiresInSeconds) * time.Second)
+	if err != nil {
+		respondWithError(w, 400, "Unable to generate JWT for current user: ", err)
+	}
 
 	if validPass {
-		loggedUser := User{
+		loggedUser := LoggedUser{
 			ID:        userData.ID,
 			CreatedAt: userData.CreatedAt,
 			UpdatedAt: userData.UpdatedAt,
 			Email:     userData.Email,
+			Token:     newToken,
 		}
 	
 		respondWithJSON(w, 200, loggedUser)
