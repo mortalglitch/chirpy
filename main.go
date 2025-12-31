@@ -1,7 +1,5 @@
 package main
 
-import _ "github.com/lib/pq"
-
 import (
 	"database/sql"
 	"log"
@@ -10,7 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/joho/godotenv"
-
+	_ "github.com/lib/pq"
 	"github.com/mortalglitch/chirpy/internal/database"
 )
 
@@ -26,9 +24,9 @@ func main() {
 
 	dbURL := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbURL)
-	if err != nil{
+	if err != nil {
 		log.Fatalf("error connecting to db: %v", err)
-	} 
+	}
 
 	const filepathRoot = "."
 	const port = "8080"
@@ -57,6 +55,8 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirpByID)
 	mux.HandleFunc("POST /api/login", apiCfg.handlerUserLogin)
+	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefreshCheck)
+	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeRefresh)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -66,6 +66,3 @@ func main() {
 	log.Printf("Serving files from %s on port: %s\n", filepathRoot, port)
 	log.Fatal(srv.ListenAndServe())
 }
-
-
-
