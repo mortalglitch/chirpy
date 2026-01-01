@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -147,6 +148,14 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 			UserID:    item.UserID,
 		}
 		currentFeed = append(currentFeed, newChirp)
+	}
+	sortMethod := r.URL.Query().Get("sort")
+	if sortMethod != "" {
+		if sortMethod == "asc" {
+			sort.Slice(currentFeed, func(i, j int) bool { return currentFeed[i].CreatedAt.Before(currentFeed[j].CreatedAt) })
+		} else if sortMethod == "desc" {
+			sort.Slice(currentFeed, func(i, j int) bool { return currentFeed[i].CreatedAt.After(currentFeed[j].CreatedAt) })
+		}
 	}
 
 	respondWithJSON(w, 200, currentFeed)
