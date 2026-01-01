@@ -13,15 +13,16 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, created_at, updated_at, email, hashed_password) 
-VALUES ( 
+INSERT INTO users (id, created_at, updated_at, email, hashed_password, is_chirpy_red)
+VALUES (
   $1,
   $2,
   $3,
   $4,
-  $5
+  $5,
+  $6
 )
-RETURNING id, created_at, updated_at, email, hashed_password
+RETURNING id, created_at, updated_at, email, hashed_password, is_chirpy_red
 `
 
 type CreateUserParams struct {
@@ -30,6 +31,7 @@ type CreateUserParams struct {
 	UpdatedAt      time.Time
 	Email          string
 	HashedPassword string
+	IsChirpyRed    bool
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -39,6 +41,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.UpdatedAt,
 		arg.Email,
 		arg.HashedPassword,
+		arg.IsChirpyRed,
 	)
 	var i User
 	err := row.Scan(
@@ -47,6 +50,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
@@ -61,7 +65,7 @@ func (q *Queries) DeleteUsers(ctx context.Context) error {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, created_at, updated_at, email, hashed_password FROM users
+SELECT id, created_at, updated_at, email, hashed_password, is_chirpy_red FROM users
 WHERE email = $1 LIMIT 1
 `
 
@@ -74,6 +78,46 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
+}
+
+const updateUserInfo = `-- name: UpdateUserInfo :exec
+UPDATE users
+SET email = $1, hashed_password = $2, updated_at = $3
+WHERE id = $4
+`
+
+type UpdateUserInfoParams struct {
+	Email          string
+	HashedPassword string
+	UpdatedAt      time.Time
+	ID             uuid.UUID
+}
+
+func (q *Queries) UpdateUserInfo(ctx context.Context, arg UpdateUserInfoParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserInfo,
+		arg.Email,
+		arg.HashedPassword,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const upgradeUserToRed = `-- name: UpgradeUserToRed :exec
+UPDATE users
+SET is_chirpy_red = TRUE, updated_at = $1
+WHERE id = $2
+`
+
+type UpgradeUserToRedParams struct {
+	UpdatedAt time.Time
+	ID        uuid.UUID
+}
+
+func (q *Queries) UpgradeUserToRed(ctx context.Context, arg UpgradeUserToRedParams) error {
+	_, err := q.db.ExecContext(ctx, upgradeUserToRed, arg.UpdatedAt, arg.ID)
+	return err
 }

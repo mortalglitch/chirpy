@@ -17,6 +17,7 @@ type apiConfig struct {
 	db             *database.Queries
 	platform       string
 	signingKey     string
+	polkakey       string
 }
 
 func main() {
@@ -35,12 +36,14 @@ func main() {
 
 	platformVersion := os.Getenv("PLATFORM")
 	signKey := os.Getenv("SIGNINGKEY")
+	polka := os.Getenv("POLKA_KEY")
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platformVersion,
 		signingKey:     signKey,
+		polkakey:       polka,
 	}
 
 	mux := http.NewServeMux()
@@ -57,6 +60,9 @@ func main() {
 	mux.HandleFunc("POST /api/login", apiCfg.handlerUserLogin)
 	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefreshCheck)
 	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeRefresh)
+	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerRedUpgradeUser)
 
 	srv := &http.Server{
 		Addr:    ":" + port,

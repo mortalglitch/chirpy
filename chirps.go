@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -9,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mortalglitch/chirpy/internal/database"
-	"github.com/mortalglitch/chirpy/internal/auth"
 	"github.com/google/uuid"
+	"github.com/mortalglitch/chirpy/internal/auth"
+	"github.com/mortalglitch/chirpy/internal/database"
 )
 
 type Chirp struct {
@@ -24,10 +23,10 @@ type Chirp struct {
 
 func (cfg *apiConfig) handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body   string `json:"body"`
+		Body string `json:"body"`
 		//UserID uuid.UUID `json:"user_id"`
 	}
-	
+
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
@@ -43,7 +42,7 @@ func (cfg *apiConfig) handlerValidateChirp(w http.ResponseWriter, r *http.Reques
 	}
 
 	cleanBody := cleanChirp(params.Body)
-	
+
 	checkToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't fetch token: ", err)
@@ -72,7 +71,7 @@ func (cfg *apiConfig) handlerValidateChirp(w http.ResponseWriter, r *http.Reques
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create Chirp", err)
 		return
 	}
-	
+
 	dbChirp := Chirp{
 		ID:        newChirp.ID,
 		CreatedAt: newChirp.CreatedAt,
@@ -100,15 +99,46 @@ func cleanChirp(body string) string {
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+
+	s := r.URL.Query().Get("author_id")
+	if s != "" {
+		requestedUser, err := uuid.Parse(s)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "author id invalid", err)
+			return
+		}
+		getChirps, err := cfg.db.GetChirpsFromUser(context.Background(), requestedUser)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "author id invalid", err)
+			return
+		}
+
+		currentFeed := []Chirp{}
+
+		for _, item := range getChirps {
+			newChirp := Chirp{
+				ID:        item.ID,
+				CreatedAt: item.CreatedAt,
+				UpdatedAt: item.UpdatedAt,
+				Body:      item.Body,
+				UserID:    item.UserID,
+			}
+			currentFeed = append(currentFeed, newChirp)
+		}
+
+		respondWithJSON(w, 200, currentFeed)
+		return
+	}
+
 	getChirps, err := cfg.db.GetChirpsByCreated(context.Background())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't get Chirps", err)
 		return
 	}
-	
+
 	currentFeed := []Chirp{}
 
-	for _, item := range getChirps{
+	for _, item := range getChirps {
 		newChirp := Chirp{
 			ID:        item.ID,
 			CreatedAt: item.CreatedAt,
@@ -145,4 +175,44 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request
 	}
 
 	respondWithJSON(w, 200, dbChirp)
+}
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	currentID := r.PathValue("chirpID")
+	currentUUID, err := uuid.Parse(currentID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't parse valid UUID", err)
+		return
+	}
+
+	currentChirp, err := cfg.db.GetChirpByID(context.Background(), currentUUID)
+	if err != nil {
+		respondWithError(w, 404, "Chirp not found", err)
+		return
+	}
+
+	currentToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 401, "Couldn't fetch token: ", err)
+		return
+	}
+
+	validID, err := auth.ValidateJWT(currentToken, cfg.signingKey)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error with token: ", err)
+		return
+	}
+
+	if validID != currentChirp.UserID {
+		w.WriteHeader(403)
+		return
+	}
+
+	chirpDeleted := cfg.db.DeleteChirpByID(context.Background(), currentChirp.ID)
+	if chirpDeleted != nil {
+		respondWithError(w, 404, "Couldn't delete chirp - Chirp not found: ", err)
+		return
+	}
+
+	w.WriteHeader(204)
 }
